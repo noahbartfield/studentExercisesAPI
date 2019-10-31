@@ -1,21 +1,22 @@
-﻿using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Configuration;
-using StudentExercisesAPI.Models;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
+using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using StudentExercisesAPI.Models;
+using Microsoft.Extensions.Configuration;
 
 namespace StudentExercisesAPI.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]
-    public class ExercisesController : ControllerBase
+    public class InstructorsController : ControllerBase
     {
         private readonly IConfiguration _config;
 
-        public ExercisesController(IConfiguration config)
+        public InstructorsController(IConfiguration config)
         {
             _config = config;
         }
@@ -35,28 +36,30 @@ namespace StudentExercisesAPI.Controllers
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT Id, Name, Language FROM Exercise";
+                    cmd.CommandText = "SELECT Id, FirstName, LastName, SlackHandle, Specialty FROM Instructor";
                     SqlDataReader reader = cmd.ExecuteReader();
-                    List<Exercise> exercises = new List<Exercise>();
+                    List<Instructor> instructors = new List<Instructor>();
 
                     while (reader.Read())
                     {
-                        Exercise exercise = new Exercise
+                        Instructor instructor = new Instructor
                         {
                             Id = reader.GetInt32(reader.GetOrdinal("Id")),
-                            Name = reader.GetString(reader.GetOrdinal("Name")),
-                            Language = reader.GetString(reader.GetOrdinal("Language"))
+                            FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
+                            LastName = reader.GetString(reader.GetOrdinal("LastName")),
+                            SlackHandle = reader.GetString(reader.GetOrdinal("SlackHandle")),
+                            Specialty = reader.GetString(reader.GetOrdinal("Specialty"))
                         };
 
-                        exercises.Add(exercise);
+                        instructors.Add(instructor);
                     }
                     reader.Close();
 
-                    return Ok(exercises);
+                    return Ok(instructors);
                 }
             }
         }
-        [HttpGet("{id}", Name = "GetExercise")]
+        [HttpGet("{id}", Name = "GetInstructor")]
         public async Task<IActionResult> Get([FromRoute] int id)
         {
             using (SqlConnection conn = Connection)
@@ -66,53 +69,58 @@ namespace StudentExercisesAPI.Controllers
                 {
                     cmd.CommandText = @"
                         SELECT
-                            Id, Name, Language
-                        FROM Exercise
+                            Id, FirstName, LastName, SlackHandle, Specialty
+                        FROM Instructor
                         WHERE Id = @id";
                     cmd.Parameters.Add(new SqlParameter("@id", id));
                     SqlDataReader reader = cmd.ExecuteReader();
 
-                    Exercise exercise = null;
+                    Instructor instructor = null;
 
                     if (reader.Read())
                     {
-                        exercise = new Exercise
+                        instructor = new Instructor
                         {
                             Id = reader.GetInt32(reader.GetOrdinal("Id")),
-                            Name = reader.GetString(reader.GetOrdinal("Name")),
-                            Language = reader.GetString(reader.GetOrdinal("Language"))
+                            FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
+                            LastName = reader.GetString(reader.GetOrdinal("LastName")),
+                            SlackHandle = reader.GetString(reader.GetOrdinal("SlackHandle")),
+                            Specialty = reader.GetString(reader.GetOrdinal("Specialty"))
                         };
                     }
                     reader.Close();
 
-                    return Ok(exercise);
+                    return Ok(instructor);
                 }
             }
         }
 
         [HttpPost]
-        public async Task<IActionResult> Post([FromBody] Exercise exercise)
+        public async Task<IActionResult> Post([FromBody] Instructor instructor)
         {
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = @"INSERT INTO Exercise (Name, Language)
+                    cmd.CommandText = @"INSERT INTO Instructor (FirstName, LastName, SlackHandle, Specialty)
                                         OUTPUT INSERTED.Id
-                                        VALUES (@name, @language)";
-                    cmd.Parameters.Add(new SqlParameter("@name", exercise.Name));
-                    cmd.Parameters.Add(new SqlParameter("@language", exercise.Language));
+                                        VALUES (@firstName, @lastName, @slackHandle, @specialty)";
+                    cmd.Parameters.Add(new SqlParameter("@firstName", instructor.FirstName));
+                    cmd.Parameters.Add(new SqlParameter("@lastName", instructor.LastName));
+                    cmd.Parameters.Add(new SqlParameter("@slackHandle", instructor.SlackHandle));
+                    cmd.Parameters.Add(new SqlParameter("@specialty", instructor.Specialty));
+
 
                     int newId = (int)cmd.ExecuteScalar();
-                    exercise.Id = newId;
-                    return CreatedAtRoute("GetExercise", new { id = newId }, exercise);
+                    instructor.Id = newId;
+                    return CreatedAtRoute("GetInstructor", new { id = newId }, instructor);
                 }
             }
         }
 
         [HttpPut("{id}")]
-        public async Task<IActionResult> Put([FromRoute] int id, [FromBody] Exercise exercise)
+        public async Task<IActionResult> Put([FromRoute] int id, [FromBody] Instructor instructor)
         {
             try
             {
@@ -121,12 +129,16 @@ namespace StudentExercisesAPI.Controllers
                     conn.Open();
                     using (SqlCommand cmd = conn.CreateCommand())
                     {
-                        cmd.CommandText = @"UPDATE Exercise
-                                            SET Name = @name,
-                                                Language = @language
+                        cmd.CommandText = @"UPDATE Instructor
+                                            SET FirstName = @firstName,
+                                                LastName = @lastName,
+                                                SlackHandle = @slackHandle,
+                                                Specialty = @specialty
                                             WHERE Id = @id";
-                        cmd.Parameters.Add(new SqlParameter("@name", exercise.Name));
-                        cmd.Parameters.Add(new SqlParameter("@language", exercise.Language));
+                        cmd.Parameters.Add(new SqlParameter("@firstName", instructor.FirstName));
+                        cmd.Parameters.Add(new SqlParameter("@lastName", instructor.LastName));
+                        cmd.Parameters.Add(new SqlParameter("@slackHandle", instructor.SlackHandle));
+                        cmd.Parameters.Add(new SqlParameter("@specialty", instructor.Specialty));
                         cmd.Parameters.Add(new SqlParameter("@id", id));
 
                         int rowsAffected = cmd.ExecuteNonQuery();
@@ -140,7 +152,7 @@ namespace StudentExercisesAPI.Controllers
             }
             catch (Exception)
             {
-                if (!ExerciseExists(id))
+                if (!InstructorExists(id))
                 {
                     return NotFound();
                 }
@@ -161,8 +173,7 @@ namespace StudentExercisesAPI.Controllers
                     conn.Open();
                     using (SqlCommand cmd = conn.CreateCommand())
                     {
-                        cmd.CommandText = @"DELETE FROM StudentExerciseRel WHERE ExerciseId = @id;
-                                            DELETE FROM Exercise Where Id = @id";
+                        cmd.CommandText = @"DELETE FROM Instructor WHERE Id = @id";
                         cmd.Parameters.Add(new SqlParameter("@id", id));
 
                         int rowsAffected = cmd.ExecuteNonQuery();
@@ -176,7 +187,7 @@ namespace StudentExercisesAPI.Controllers
             }
             catch (Exception)
             {
-                if (!ExerciseExists(id))
+                if (!InstructorExists(id))
                 {
                     return NotFound();
                 }
@@ -187,7 +198,7 @@ namespace StudentExercisesAPI.Controllers
             }
         }
 
-        private bool ExerciseExists(int id)
+        private bool InstructorExists(int id)
         {
             using (SqlConnection conn = Connection)
             {
@@ -195,8 +206,8 @@ namespace StudentExercisesAPI.Controllers
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
                     cmd.CommandText = @"
-                        SELECT Id, Name, Language
-                        FROM Exercise
+                        SELECT Id, FirstName, LastName, SlackHandle, Specialty
+                        FROM Instructor
                         WHERE Id = @id";
                     cmd.Parameters.Add(new SqlParameter("@id", id));
 
