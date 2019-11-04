@@ -28,31 +28,59 @@ namespace StudentExercisesAPI.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Get()
+        public async Task<IActionResult> Get(string include)
         {
             using (SqlConnection conn = Connection)
             {
                 conn.Open();
                 using (SqlCommand cmd = conn.CreateCommand())
                 {
-                    cmd.CommandText = "SELECT Id, Name, Language FROM Exercise";
+                    if (include == "student")
+                    {
+                        cmd.CommandText = @"SELECT e.Id, e.Name, e.Language, s.FirstName, s.LastName, s.SlackHandle
+	                                             , s.CohortId, se.StudentId, se.ExerciseId
+                                                   FROM Exercise e INNER JOIN StudentExerciseRel se ON e.Id = se.ExerciseId
+	                                               INNER JOIN Student s ON se.StudentId = s.Id";
+                    }
+                    else
+                    {
+                        cmd.CommandText = "SELECT Id, Name, Language FROM Exercise";
+                    }
                     SqlDataReader reader = cmd.ExecuteReader();
-                    List<Exercise> exercises = new List<Exercise>();
+                    Dictionary<int, Exercise> exercises = new Dictionary<int, Exercise>();
 
                     while (reader.Read())
                     {
-                        Exercise exercise = new Exercise
+                        int exerciseId = reader.GetInt32(reader.GetOrdinal("Id"));
+                        if (!exercises.ContainsKey(exerciseId))
                         {
-                            Id = reader.GetInt32(reader.GetOrdinal("Id")),
-                            Name = reader.GetString(reader.GetOrdinal("Name")),
-                            Language = reader.GetString(reader.GetOrdinal("Language"))
-                        };
+                            Exercise newExercise = new Exercise
+                            {
+                                Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                                Name = reader.GetString(reader.GetOrdinal("Name")),
+                                Language = reader.GetString(reader.GetOrdinal("Language"))
+                            };
+                            exercises.Add(exerciseId, newExercise);
+                        }
+                        Exercise fromDictionary = exercises[exerciseId];
 
-                        exercises.Add(exercise);
+                        if (include == "student" && !reader.IsDBNull(reader.GetOrdinal("StudentId")))
+                        {
+                            Student aStudent = new Student
+                            {
+                                Id = reader.GetInt32(reader.GetOrdinal("ExerciseId")),
+                                FirstName = reader.GetString(reader.GetOrdinal("FirstName")),
+                                LastName = reader.GetString(reader.GetOrdinal("LastName")),
+                                SlackHandle = reader.GetString(reader.GetOrdinal("SlackHandle")),
+                                CohortId = reader.GetInt32(reader.GetOrdinal("CohortId"))
+                            };
+                            fromDictionary.Students.Add(aStudent);
+                        }
+
                     }
                     reader.Close();
 
-                    return Ok(exercises);
+                    return Ok(exercises.Values);
                 }
             }
         }
